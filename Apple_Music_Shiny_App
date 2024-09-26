@@ -1,0 +1,187 @@
+## This is something that I want to keep adding to with some ideas for random color samples for all of the aspects in the display, as well as time going on and updating the library code.
+
+# Load the XML and Stringr packages
+library(XML)
+library(stringr)
+
+# Loading in my XML file with Apple Music data
+xml_file <- xmlParse("~/Documents/Sep20_Library.xml")
+
+# Getting the roots of the XML file
+root <- xmlRoot(xml_file)
+
+# Parse the key-value pairs from the "dict" elements
+songs <- xpathApply(root, "//dict/dict", function(node) {
+  keys <- xpathSApply(node, "key", xmlValue)
+  values <- xpathSApply(node, "key/following-sibling::*[1]", xmlValue)
+  return(setNames(as.list(values), keys))
+})
+
+# Determine all unique keys across all songs
+all_keys <- unique(unlist(lapply(songs, names)))
+
+# Standardize each song's structure by including all keys and filling missing values with NA
+standardized_songs <- lapply(songs, function(song) {
+  song[setdiff(all_keys, names(song))] <- NA
+  return(song)
+})
+
+# Using 'do.call' to convert the standardized list of songs into a data frame
+songs_df <- do.call(rbind, lapply(standardized_songs, function(x) as.data.frame(as.list(x), stringsAsFactors = FALSE)))
+
+# Taking off the 1st column that is already included in the 'Values' column
+songs_df <- songs_df[1,]
+
+library(tidyverse)
+
+melted_songs <- songs_df %>% 
+  pivot_longer(cols = everything(), names_to = "Variable", values_to = "Values")
+
+melted_songs <- melted_songs[,2]
+
+melted_songs$'Track ID' <- str_extract(melted_songs$Values,"([ID])(\\d{4})",group = 2)
+
+melted_songs$Values <- gsub("(Track ID\\d{4})(.+)","\\2",melted_songs$Values)
+
+melted_songs$'Play Total' <- str_extract(melted_songs$Values,"(.)(Play Count\\d+)(.)", group = 2)
+
+melted_songs$`Play Total` <- gsub("(Play Count)(\\d+)","\\2",melted_songs$`Play Total`)
+
+melted_songs$`Play Total` <- as.integer(melted_songs$`Play Total`)
+
+x <- melted_songs$`Play Total`
+
+removed_rows <- print(which(is.na(x)))
+
+melted_songs <- melted_songs[-removed_rows,]
+
+melted_songs$Values <- gsub("Disc Number\\d+.+","",melted_songs$Values)
+
+melted_songs$'Total Time' <- str_extract(melted_songs$Values,"(.+)(Total Time\\d+)", group = 2)
+
+melted_songs$`Total Time` <- gsub("(Total Time)(\\d+)","\\2",melted_songs$`Total Time`)
+
+melted_songs$Values <- gsub("(.+)(Total Time\\d+)","\\1",melted_songs$Values)
+
+melted_songs$Values <- gsub("(.+)(Kind.+)","\\1",melted_songs$Values)
+
+melted_songs$Genre <- str_extract(melted_songs$Values,"(.+)(Genre.+)", group = 2)
+
+melted_songs$Genre <- gsub("(Genre)(.+)","\\2",melted_songs$Genre)
+
+melted_songs$Values <- gsub("(.+)(Genre.+)","\\1",melted_songs$Values)
+
+melted_songs$Album <- str_extract(melted_songs$Values,"(.+)(Album Artist.+)(Album.+)", group = 3)
+
+melted_songs$Album <- gsub("(Album)(.+)","\\2",melted_songs$Album)
+
+# Loop through each row of melted_songs and apply the replacements
+for (i in 1:nrow(melted_songs)) {
+  # Check if the Album starts with ')'
+  if (grepl("^)", melted_songs$Album[i])) {
+    
+    # Check for specific conditions in the Values column and replace Album accordingly
+    if (grepl("The Beatles (White Album)", melted_songs$Values[i])) {
+      melted_songs$Album[i] <- gsub("^)", "The Beatles (White Album)", melted_songs$Album[i])
+      
+    } else if (grepl("The Beatles 1967-1970 (The Blue Album)", melted_songs$Values[i])) {
+      melted_songs$Album[i] <- gsub("^)", "The Beatles 1967-1970 (The Blue Album)", melted_songs$Album[i])
+      
+    } else if (grepl("Greatest Hits! (Album)", melted_songs$Values[i])) {
+      melted_songs$Album[i] <- gsub("^)", "Greatest Hits! (Album)", melted_songs$Album[i])
+    }
+  }
+}
+
+
+
+melted_songs$Values <- gsub("(.+)(Album Artist.+)","\\1",melted_songs$Values)
+
+melted_songs$Artist <- str_extract(melted_songs$Values,"(.+)(Artist.+)", group = 2)
+
+melted_songs$Artist <- gsub("(Artist)(.+)","\\2",melted_songs$Artist)
+
+melted_songs$Values <- gsub("(.+)(Artist.+)","\\1",melted_songs$Values)
+
+melted_songs$Values <- gsub("(^.{4})(.+)","\\2",melted_songs$Values)
+
+melted_songs$Values <- gsub("(^e)(.+)","\\2",melted_songs$Values)
+
+melted_songs$`Total Time` <- as.integer(melted_songs$`Total Time`)
+
+melted_songs$'Total Combined Time' <- as.integer(melted_songs$`Play Total`*melted_songs$`Total Time`)
+
+melted_songs <- melted_songs[,-2]
+
+columns <- c("Song Title", "Total Plays", "Song Time Total", "Genre", "Album", "Artist", "Total Time Combined")
+
+colnames(melted_songs) <- columns
+
+moved_columns <- c(1,6,5,4,2,3,7)
+
+melted_songs <- melted_songs[,moved_columns]
+
+melted_songs$`Total Time Combined` <- round(melted_songs$`Total Time Combined`/3600000,2)
+
+melted_songs$`Total Time Combined Minutes` <- str_extract(melted_songs$`Total Time Combined`,"(\\d+)(\\.\\d+)", group = 2)
+
+melted_songs$`Total Time Combined` <- gsub("(\\d+)(\\.\\d+)","\\1",melted_songs$`Total Time Combined`)
+
+melted_songs$`Total Time Combined` <- as.integer(melted_songs$`Total Time Combined`)
+
+melted_songs$`Total Time Combined Minutes` <- gsub("(.+)","0\\1",melted_songs$`Total Time Combined Minutes`)
+
+melted_songs$`Total Time Combined Minutes` <- replace_na(melted_songs$`Total Time Combined Minutes`,"0")
+
+melted_songs$`Total Time Combined Minutes` <- as.numeric(melted_songs$`Total Time Combined Minutes`)
+
+melted_songs$`Total Time Combined Minutes` <- melted_songs$`Total Time Combined Minutes`*60
+
+melted_songs$`Total Time Combined Seconds` <- str_extract(melted_songs$`Total Time Combined Minutes`,"(\\d+)(\\.\\d+)", group = 2)
+
+melted_songs$`Total Time Combined Minutes` <- gsub("(\\d+)(\\.\\d+)","\\1",melted_songs$`Total Time Combined Minutes`)
+
+melted_songs$`Total Time Combined Minutes` <- as.numeric(melted_songs$`Total Time Combined Minutes`)
+
+melted_songs$`Total Time Combined Seconds` <- replace_na(melted_songs$`Total Time Combined Seconds`,"0")
+
+melted_songs$`Total Time Combined Seconds` <- gsub("(\\.\\d+)","0\\1",melted_songs$`Total Time Combined Seconds`)
+
+melted_songs$`Total Time Combined Seconds` <- as.numeric(melted_songs$`Total Time Combined Seconds`)
+
+melted_songs$`Total Time Combined Seconds` <- melted_songs$`Total Time Combined Seconds`*60
+
+new_names <- c("Song Title","Artist","Album","Genre","Total Plays","Song Length","Hours Listened","Minutes Listened","Seconds Listened")
+
+colnames(melted_songs) <- new_names
+
+# I want to include this later to total out the amount of time I have spent listening to music on Apple Music
+# account, just need to logically think on the math and coding for it
+
+# sum(melted_songs$`Hours Listened`)
+# sum(melted_songs$`Minutes Listened`)/60
+# ((sum(melted_songs$`Seconds Listened`)+49.98)/60)/60
+
+
+## This is for a new idea I had to create a matrix with the RGB values to randomize colors on all parts
+## of the ShinyApp, but it will take a different day to work on it!
+
+# colors_matrix <- matrix(data = NA, nrow = 256, ncol = 3)
+
+# column_names <- c("Red","Green","Blue")
+
+# colnames(colors_matrix) <- column_names
+
+# colors_matrix[1:256,] <- seq(from = 0, to = 255, by = 1)
+
+# alpha_values <- 1
+
+# randomizer <- function(matrix){
+#  apply(matrix, 2, function(col) sample(col,1))
+# }
+
+random_rgba <- randomizer(colors_matrix)
+
+color_finals <- paste0("rgba(",random_rgba[1],",",random_rgba[2],",",random_rgba[3],",",alpha_values,")")
+
+
