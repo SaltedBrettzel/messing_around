@@ -1,5 +1,6 @@
 ## This is something that I want to keep adding to with some ideas for random color samples for all of the aspects in the display, as well as time going on and updating the library code.
 
+# This xml file is located under the 'Sep20_Library.xml' files
 # Load the XML and Stringr packages
 library(XML)
 library(stringr)
