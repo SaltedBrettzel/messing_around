@@ -10,14 +10,14 @@ xml_file <- xmlParse("~/Documents/Sep20_Library.xml")
 # Getting the roots of the XML file
 root <- xmlRoot(xml_file)
 
-# Parse the key-value pairs from the "dict" elements
+# Parsing the key-value pairs from the "dict" elements
 songs <- xpathApply(root, "//dict/dict", function(node) {
   keys <- xpathSApply(node, "key", xmlValue)
   values <- xpathSApply(node, "key/following-sibling::*[1]", xmlValue)
   return(setNames(as.list(values), keys))
 })
 
-# Determine all unique keys across all songs
+# Looking at all unique keys across all songs
 all_keys <- unique(unlist(lapply(songs, names)))
 
 # Standardize each song's structure by including all keys and filling missing values with NA
@@ -29,16 +29,18 @@ standardized_songs <- lapply(songs, function(song) {
 # Using 'do.call' to convert the standardized list of songs into a data frame
 songs_df <- do.call(rbind, lapply(standardized_songs, function(x) as.data.frame(as.list(x), stringsAsFactors = FALSE)))
 
-# Taking off the 1st column that is already included in the 'Values' column
+# Taking off all but the first row since no data is in any other row
 songs_df <- songs_df[1,]
 
+# Loading in the Tidyverse package to use 'dplyr' functions and pivot table to make the single row into the same as the columns
 library(tidyverse)
-
 melted_songs <- songs_df %>% 
   pivot_longer(cols = everything(), names_to = "Variable", values_to = "Values")
 
+# Taking the second column since the first column was the previous variable before pivoting
 melted_songs <- melted_songs[,2]
 
+# This next long chunk of coding was string extracting the variables I wanted from the 'Values' column and clearing out extra string clutter
 melted_songs$'Track ID' <- str_extract(melted_songs$Values,"([ID])(\\d{4})",group = 2)
 
 melted_songs$Values <- gsub("(Track ID\\d{4})(.+)","\\2",melted_songs$Values)
@@ -48,6 +50,9 @@ melted_songs$'Play Total' <- str_extract(melted_songs$Values,"(.)(Play Count\\d+
 melted_songs$`Play Total` <- gsub("(Play Count)(\\d+)","\\2",melted_songs$`Play Total`)
 
 melted_songs$`Play Total` <- as.integer(melted_songs$`Play Total`)
+
+# I wanted this whole shiny app help me figure out my total number of plays and the time spent respectively
+# So I removed the rows that had nothing in the cell to save errors or miscalulations down the road
 
 x <- melted_songs$`Play Total`
 
@@ -75,28 +80,6 @@ melted_songs$Album <- str_extract(melted_songs$Values,"(.+)(Album Artist.+)(Albu
 
 melted_songs$Album <- gsub("(Album)(.+)","\\2",melted_songs$Album)
 
-# Loop through each row of melted_songs and apply the replacements
-for (i in 1:nrow(melted_songs)) {
-  # Check if the Album starts with ')'
-  if (grepl("^)", melted_songs$Album[i])) {
-    
-    # Check for specific conditions in the Values column and replace Album accordingly
-    if (grepl("The Beatles (White Album)", melted_songs$Values[i])) {
-      melted_songs$Album[i] <- gsub("^)", "The Beatles (White Album)", melted_songs$Album[i])
-      
-    } else if (grepl("The Beatles 1967-1970 (The Blue Album)", melted_songs$Values[i])) {
-      melted_songs$Album[i] <- gsub("^)", "The Beatles 1967-1970 (The Blue Album)", melted_songs$Album[i])
-      
-    } else if (grepl("Greatest Hits! (Album)", melted_songs$Values[i])) {
-      melted_songs$Album[i] <- gsub("^)", "Greatest Hits! (Album)", melted_songs$Album[i])
-    }
-  }
-}
-
-
-
-melted_songs$Values <- gsub("(.+)(Album Artist.+)","\\1",melted_songs$Values)
-
 melted_songs$Artist <- str_extract(melted_songs$Values,"(.+)(Artist.+)", group = 2)
 
 melted_songs$Artist <- gsub("(Artist)(.+)","\\2",melted_songs$Artist)
@@ -111,6 +94,7 @@ melted_songs$`Total Time` <- as.integer(melted_songs$`Total Time`)
 
 melted_songs$'Total Combined Time' <- as.integer(melted_songs$`Play Total`*melted_songs$`Total Time`)
 
+# After cleansing all of the data I wanted and seemed pertitent, I removed 
 melted_songs <- melted_songs[,-2]
 
 columns <- c("Song Title", "Total Plays", "Song Time Total", "Genre", "Album", "Artist", "Total Time Combined")
@@ -120,6 +104,9 @@ colnames(melted_songs) <- columns
 moved_columns <- c(1,6,5,4,2,3,7)
 
 melted_songs <- melted_songs[,moved_columns]
+
+# I wanted to also see how much time I have accrued listening to songs broken down by the hour, the minute, and the seconds to compare between the number of times played and actual total time
+# So this meant I had to figure some math to round and string extract to convert time units and miliseconds
 
 melted_songs$`Total Time Combined` <- round(melted_songs$`Total Time Combined`/3600000,2)
 
@@ -180,8 +167,8 @@ colnames(melted_songs) <- new_names
 #  apply(matrix, 2, function(col) sample(col,1))
 # }
 
-random_rgba <- randomizer(colors_matrix)
+# random_rgba <- randomizer(colors_matrix)
 
-color_finals <- paste0("rgba(",random_rgba[1],",",random_rgba[2],",",random_rgba[3],",",alpha_values,")")
+# color_finals <- paste0("rgba(",random_rgba[1],",",random_rgba[2],",",random_rgba[3],",",alpha_values,")")
 
 
