@@ -1,0 +1,184 @@
+## This is code that would need to be put into a Shiny Web App script 
+
+
+library(shiny)
+library(XML)
+library(stringr)
+library(tidyverse)
+library(DT)
+
+# This is the 'User Interface' side of the code that allows to give the application some character to it
+# There are still a few things I want to work on, like replacing the RGB color values (hexcodes) to random combinations to spice it up
+# I also am looking to put in charts of my genres, album counts, and total plays to give visual representation to any who cares to open this!
+
+# This coding allows for user input to filter between the likes of songs, albums, artists, or 
+ui <- fluidPage(
+  tags$head(
+    tags$style(
+      HTML("
+           body {
+           background-color: #161d23;
+           }
+           .result-panel, .result-panel * {
+           background-color: rgba(15,68,76,0.8);
+           padding: 5px;
+           border-radius: 10px;
+           margin-top: 5px;
+           color: #FFFFFF;
+           overflow: hidden !important;
+           max-height: 100vh;
+           }
+           .title-panel {
+           background-color: #114538;
+           padding: 20px;
+           border-radius: 10px;
+           margin-bottom: 20px;
+           text-align: center;
+           font-size: 24px;
+           font-weight: bold;
+           color: #FFFFFF !important;
+           }
+           h2 {
+           color: #FFFFFF !important;
+           font-size: 32px;
+           font-weight: bold;
+    }
+           .well {
+           background-color: #5e8d83;
+           color: #FFDEAD;
+           border-radius: 10px;
+           padding: 20px;
+           }
+           .form-group {
+           margin-bottom: 15px;
+           }
+           .btn {
+           background-color: #FFFFFF;
+           color: #000000;
+           border: none;
+           border-radius: 5px;
+           }
+           .table {
+           width: 100% !important;
+           table-layout: auto !important;
+           word-wrap: break-word !important;
+           }
+           .table th, .table td {
+           padding: 8px;
+           min-width: 100px;
+           color: #FFDEAD;
+           }
+           .table th:nth-child(1), .table td:nth-child(1) {
+           width: 25%;
+           }
+           .table th:nth-child(2), .table td:nth-child(2) {
+           width: 20%;
+           }
+           .table th:nth-child(3), .table td:nth-child(3) {
+           width: 20%;
+           }
+           .table th:nth-child(4), .table td:nth-child(4) {
+           width: 20%;
+           }
+           .table th:nth-child(5), .table td:nth-child(5) {
+           width: 10%;
+           }
+           .table th:nth-child(6), .table td:nth-child(6) {
+           width: 5%;
+           }
+           .table th:nth-child(7), .table td:nth-child(7) {
+           width: 5%;
+           }
+           "
+      )
+    )
+  ),
+  titlePanel("Music Library Viewer"),
+  sidebarLayout(
+    sidebarPanel(
+      textInput("song_title", "Song Title:", ""),
+      textInput("artist", "Artist Name:", ""),
+      textInput("album", "Album Name:", ""),
+      textInput("genre", "Genre:", ""),
+      selectInput("sort_by", "Sort By:", 
+                  choices = c("Song Title" = "Song Title", 
+                              "Artist" = "Artist", 
+                              "Album" = "Album",
+                              "Genre" = "Genre",
+                              "Total Plays" = "Total Plays",
+                              "Song Length" = "Song Length",
+                              "Hours Listened" = "Hours Listened")),
+      radioButtons("order", "Order:", choices = c("Ascending" = "asc", "Descending" = "desc")),
+      actionButton("filter", "Filter")
+    ),
+    mainPanel(
+      div(class = "title-panel", "Filtered Songs"),
+      div(class = "result-panel",
+          DTOutput("filtered_data")
+      )
+    )
+  )
+)
+
+
+
+server <- function(input, output) {
+  filtered_songs <- reactive({
+    req(input$filter)
+    songs <- melted_songs
+    
+    if (input$song_title != "") {
+      songs <- songs %>% filter(str_detect(`Song Title`, regex(input$song_title, ignore_case = TRUE)))
+    }
+    if (input$artist != "") {
+      songs <- songs %>% filter(str_detect(Artist, regex(input$artist, ignore_case = TRUE)))
+    }
+    if (input$album != "") {
+      songs <- songs %>% filter(str_detect(Album, regex(input$album, ignore_case = TRUE)))
+    }
+    if (input$genre != "") {
+      songs <- songs %>% filter(str_detect(Genre, regex(input$genre, ignore_case = TRUE)))
+    }
+    
+    is_numeric_column <- is.numeric(songs[[input$sort_by]])
+    if (input$order == "asc") {
+      songs <- if (is_numeric_column) {
+        songs %>% arrange(.data[[input$sort_by]])
+      } else {
+        songs %>% arrange(str_to_lower(.data[[input$sort_by]]))
+      }
+    } else {
+      songs <- if (is_numeric_column) {
+        songs %>% arrange(desc(.data[[input$sort_by]]))
+      } else {
+        songs %>% arrange(desc(str_to_lower(.data[[input$sort_by]])))
+      }
+    }
+    
+    songs
+  })
+  
+  output$filtered_data <- renderDT({
+    datatable(filtered_songs(), options = list(
+      paging = FALSE,
+      scrollY = FALSE,
+      scrollX = TRUE,
+      dom = 't',
+      autoWidth = TRUE,
+      columnDefs = list(
+        list(width = '20%', targets = 0),
+        list(width = '20%', targets = 1),
+        list(width = '15%', targets = 2),
+        list(width = '15%', targets = 3),
+        list(width = '10%', targets = 4),
+        list(width = '10%', targets = 5),
+        list(width = '10%', targets = 6)
+      ),
+      class = "display"
+    ))
+  })
+}
+
+
+
+shinyApp(ui = ui, server = server)
